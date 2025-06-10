@@ -23,25 +23,23 @@ const apiKey = process.env.SPEECHIFY_API_KEY;
 const CACHE_DURATION = 2 * 60 * 60 * 1000;
 
 app.post('/generate-audio', async (req, res) => {
-    const { text, voice = 'oliver', speed = 1.0, emotion = 0, format = 'mp3' } = req.body;
+    const { text, voice = 'oliver', emotion = 50, format = 'mp3' } = req.body;
     if (!text) {
         return res.status(400).json({ error: 'Text is required' });
     }
 
     // Map emotion (0 to 100) to SSML pitch (-10% to +10%)
     const pitch = `${(emotion - 50) / 5}%`; // 0 -> -10%, 100 -> +10%
-    // Map speed (0.5 to 2.0) to SSML rate
-    const rate = `${speed * 100}%`; // 1.0 -> 100%, 0.5 -> 50%, 2.0 -> 200%
-    // Generate SSML input
+    // Generate SSML input (no rate for default speed)
     const ssmlInput = `
         <speak>
-            <prosody pitch="${pitch}" rate="${rate}">
+            <prosody pitch="${pitch}">
                 ${text}
             </prosody>
         </speak>
     `;
 
-    const cacheKey = `${text}:${voice}:${speed}:${emotion}:${format}`;
+    const cacheKey = `${text}:${voice}:${emotion}:${format}`;
     const cachedAudio = cache.get(cacheKey);
 
     if (cachedAudio) {
