@@ -3,11 +3,20 @@ const express = require('express');
 const axios = require('axios');
 const cache = require('memory-cache');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const app = express();
 
 // Middleware
-app.use(cors()); // Allow requests from your React app
+app.use(cors());
 app.use(express.json());
+
+// Rate limiter: 1 request per 10 seconds per IP
+const limiter = rateLimit({
+    windowMs: 10 * 1000, // 10 seconds
+    max: 1, // 1 request per window
+    message: { error: 'Too many requests, please try again after 10 seconds' }
+});
+app.use('/generate-audio', limiter);
 
 // Speechify API configuration
 const apiUrl = 'https://api.sws.speechify.com/v1/audio/generate'; // Verify in Speechify docs
@@ -20,12 +29,10 @@ const CACHE_DURATION = 2 * 60 * 60 * 1000;
 app.post('/generate-audio', async (req, res) => {
     const { text, voice = 'jesse', speed = 1.0, format = 'mp3' } = req.body;
 
-    // Validate request
     if (!text) {
         return res.status(400).json({ error: 'Text is required' });
     }
 
-    // Create cache key
     const cacheKey = `${text}:${voice}:${speed}:${format}`;
     const cachedAudio = cache.get(cacheKey);
 
@@ -49,7 +56,6 @@ app.post('/generate-audio', async (req, res) => {
             responseType: 'arraybuffer'
         });
 
-        // Cache the audio
         cache.put(cacheKey, response.data, CACHE_DURATION);
         console.log('Audio generated and cached');
 
@@ -61,7 +67,6 @@ app.post('/generate-audio', async (req, res) => {
     }
 });
 
-// Health check
 app.get('/health', (req, res) => res.send('Server is running'));
 
 const PORT = process.env.PORT || 3000;
