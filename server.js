@@ -6,6 +6,9 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const app = express();
 
+// Enable trust proxy for Render's load balancer
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -19,13 +22,12 @@ const limiter = rateLimit({
 app.use('/generate-audio', limiter);
 
 // Speechify API configuration
-const apiUrl = 'https://api.sws.speechify.com/v1/audio/generate'; // Verify in Speechify docs
+const apiUrl = process.env.SPEECHIFY_API_URL || 'https://api.sws.speechify.com/v1/audio/generate'; // Fallback endpoint
 const apiKey = process.env.SPEECHIFY_API_KEY;
 
 // Cache configuration (2 hours = 7200 seconds)
 const CACHE_DURATION = 2 * 60 * 60 * 1000;
 
-// Endpoint to generate audio
 app.post('/generate-audio', async (req, res) => {
     const { text, voice = 'jesse', speed = 1.0, format = 'mp3' } = req.body;
 
@@ -58,12 +60,13 @@ app.post('/generate-audio', async (req, res) => {
 
         cache.put(cacheKey, response.data, CACHE_DURATION);
         console.log('Audio generated and cached');
-
         res.set('Content-Type', `audio/${format}`);
         res.send(response.data);
     } catch (error) {
-        console.error('Error:', error.response ? error.response.data : error.message);
-        res.status(500).json({ error: 'Failed to generate audio' });
+        const status = error.response?.status || 500;
+        const message = error.response?.data?.error || error.message || 'Failed to generate audio';
+        console.error(`Error: ${status} - ${message}`);
+        res.status(status).json({ error: message });
     }
 });
 
