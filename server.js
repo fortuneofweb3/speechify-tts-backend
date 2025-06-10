@@ -23,11 +23,25 @@ const apiKey = process.env.SPEECHIFY_API_KEY;
 const CACHE_DURATION = 2 * 60 * 60 * 1000;
 
 app.post('/generate-audio', async (req, res) => {
-    const { text, voice = 'oliver', speed = 1.0, format = 'mp3' } = req.body;
+    const { text, voice = 'oliver', speed = 1.0, emotion = 0, format = 'mp3' } = req.body;
     if (!text) {
         return res.status(400).json({ error: 'Text is required' });
     }
-    const cacheKey = `${text}:${voice}:${speed}:${format}`;
+
+    // Map emotion (0 to 100) to SSML pitch (-10% to +10%)
+    const pitch = `${(emotion - 50) / 5}%`; // 0 -> -10%, 100 -> +10%
+    // Map speed (0.5 to 2.0) to SSML rate
+    const rate = `${speed * 100}%`; // 1.0 -> 100%, 0.5 -> 50%, 2.0 -> 200%
+    // Generate SSML input
+    const ssmlInput = `
+        <speak>
+            <prosody pitch="${pitch}" rate="${rate}">
+                ${text}
+            </prosody>
+        </speak>
+    `;
+
+    const cacheKey = `${text}:${voice}:${speed}:${emotion}:${format}`;
     const cachedAudio = cache.get(cacheKey);
 
     if (cachedAudio) {
@@ -38,17 +52,17 @@ app.post('/generate-audio', async (req, res) => {
 
     try {
         const response = await axios.post(apiUrl, {
-            input: text,
-            voice_id: voice, // Use oliver
-            language: 'en-US', // Default to en-US
-            model: 'simba-english' // Default model
+            input: ssmlInput,
+            voice_id: voice,
+            language: 'en-US',
+            model: 'simba-english'
         }, {
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
                 'Accept': 'audio/mpeg'
             },
-            responseType: 'arraybuffer' // Handle binary stream
+            responseType: 'arraybuffer'
         });
 
         const audioData = Buffer.from(response.data);
