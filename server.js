@@ -18,12 +18,12 @@ const limiter = rateLimit({
 });
 app.use('/generate-audio', limiter);
 
-const apiUrl = process.env.SPEECHIFY_API_URL || 'https://api.sws.speechify.com/v1/audio/speech';
+const apiUrl = process.env.SPEECHIFY_API_URL || 'https://api.sws.speechify.com/v1/audio/stream';
 const apiKey = process.env.SPEECHIFY_API_KEY;
 const CACHE_DURATION = 2 * 60 * 60 * 1000;
 
 app.post('/generate-audio', async (req, res) => {
-    const { text, voice = 'jesse', speed = 1.0, format = 'mp3' } = req.body;
+    const { text, voice = 'oliver', speed = 1.0, format = 'mp3' } = req.body;
     if (!text) {
         return res.status(400).json({ error: 'Text is required' });
     }
@@ -39,19 +39,19 @@ app.post('/generate-audio', async (req, res) => {
     try {
         const response = await axios.post(apiUrl, {
             input: text,
-            voice_id: voice, // Use voice_id as per Speechify API
-            speed_rate: speed, // Map speed to speed_rate for SSML (if needed)
-            audio_format: format,
-            language: 'en-US' // Default to en-US; adjust as needed
+            voice_id: voice, // Use oliver
+            language: 'en-US', // Default to en-US
+            model: 'simba-english' // Default model
         }, {
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
-            }
+                'Content-Type': 'application/json',
+                'Accept': 'audio/mpeg'
+            },
+            responseType: 'arraybuffer' // Handle binary stream
         });
 
-        // Decode Base64 audio_data to binary
-        const audioData = Buffer.from(response.data.audio_data, 'base64');
+        const audioData = Buffer.from(response.data);
         cache.put(cacheKey, audioData, CACHE_DURATION);
         console.log('Audio generated and cached');
         res.set('Content-Type', `audio/${format}`);
